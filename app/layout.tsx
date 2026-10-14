@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   description: "Temporary, consent-based friend location sharing on a retro pixel tracker.",
   applicationName: "Spidey Tracker",
   appleWebApp: { capable: true, title: "Spidey", statusBarStyle: "black-translucent" },
+  other: { "apple-mobile-web-app-capable": "yes" }, // older iOS still reads this name
   formatDetection: { telephone: false },
   robots: { index: false, follow: false }, // invite/tracker pages must never be indexed
 };

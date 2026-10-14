@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import EqBars from "@/components/EqBars";
 import PixelButton from "@/components/PixelButton";
+import InstallApp from "@/components/InstallApp";
 import SpiderPicker from "@/components/SpiderPicker";
 import { SetDeviceStatus } from "@/components/device/DeviceStatus";
 import { cleanName, isValidName } from "@/lib/names";
@@ -85,6 +86,7 @@ export default function CreateTrackerForm() {
       </PixelButton>
 
       <p className="console__foot">MUTUAL TRACKING • EXPIRES AFTER 1 HOUR</p>
+      <InstallApp />
     </form>
   );
 }

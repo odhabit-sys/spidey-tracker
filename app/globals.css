@@ -1382,3 +1382,61 @@ input {
 .hud-key {
   position: relative;
 }
+
+/* Home screen only: quiet "add to phone" hint (components/InstallApp.tsx). */
+.install {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: -6px;
+}
+.install__row {
+  display: flex;
+  align-items: center;
+}
+.install__link,
+.install__close {
+  min-height: 44px;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--screen-text);
+  font: inherit;
+  font-size: 8px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.install__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.install__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 11px;
+  height: 11px;
+  border: 1px solid currentColor;
+  font-size: 8px;
+  line-height: 1;
+  text-decoration: none;
+}
+.install__close {
+  min-width: 44px;
+  color: var(--screen-muted);
+  font-size: 12px;
+}
+.install__help {
+  margin: -8px 0 0;
+  color: var(--screen-muted);
+  font-size: 8px;
+  letter-spacing: 1px;
+  line-height: 1.6;
+  text-align: center;
+}
+.install__share {
+  color: var(--screen-text);
+  vertical-align: -1px;
+}
