@@ -65,8 +65,10 @@ const out = {
   "public/icons/icon-192.png": render(192, 8, 8), // mask 128px
   "public/icons/icon-512.png": render(512, 20, 20), // mask 320px
   "public/icons/icon-maskable-512.png": render(512, 16, 0), // mask 256px, inside the 80% safe zone
-  "app/apple-icon.png": render(180, 8, 0), // iOS rounds the corners itself
-  "app/icon.png": render(32, 2, 0), // favicon
+  // Static files at the conventional root paths iOS requests (no generated URLs).
+  "public/apple-touch-icon.png": render(180, 8, 0), // iOS rounds the corners itself
+  "public/apple-touch-icon-precomposed.png": render(180, 8, 0),
+  "public/icons/icon-32.png": render(32, 2, 0), // favicon
 };
 for (const [file, data] of Object.entries(out)) {
   writeFileSync(file, data);

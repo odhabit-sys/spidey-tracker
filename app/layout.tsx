@@ -12,6 +12,15 @@ export const metadata: Metadata = {
   applicationName: "Spidey Tracker",
   appleWebApp: { capable: true, title: "Spidey", statusBarStyle: "black-translucent" },
   other: { "apple-mobile-web-app-capable": "yes" }, // older iOS still reads this name
+  // Plain static PNGs (public/, made by scripts/generate-icons.mjs) at fixed URLs,
+  // so iOS always finds the pixel mask, including at its default /apple-touch-icon.png.
+  icons: {
+    icon: [
+      { url: "/icons/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   formatDetection: { telephone: false },
   robots: { index: false, follow: false }, // invite/tracker pages must never be indexed
 };
