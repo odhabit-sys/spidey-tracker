@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import EqBars from "@/components/EqBars";
 import PixelButton from "@/components/PixelButton";
+import SpiderPicker from "@/components/SpiderPicker";
 import { SetDeviceStatus } from "@/components/device/DeviceStatus";
 import Display, { Loading } from "@/components/tracker/Display";
 import LiveTracker from "@/components/tracker/LiveTracker";
@@ -15,6 +16,7 @@ import { loadCredentialsForInvite, saveCredentials } from "@/lib/client/particip
 import { useCountdown } from "@/lib/client/useCountdown";
 import { useLocationPublisher, type AcquireResult, type FailReason } from "@/lib/client/useLocationPublisher";
 import { cleanName, isValidName } from "@/lib/names";
+import { firstFreeSpider, type SpiderId } from "@/lib/shared/spiders";
 import type { InviteInfo, ParticipantCredentials, TrackerStatus } from "@/lib/shared/types";
 
 export default function JoinInvite({ token }: { token: string }) {
@@ -38,13 +40,16 @@ function JoinFlow({ inviteToken, stored }: { inviteToken: string; stored: Partic
   const [creds, setCreds] = useState<ParticipantCredentials | null>(stored);
   const [lookup, setLookup] = useState<Lookup>({ kind: "loading" });
   const [name, setName] = useState("");
+  const [spider, setSpider] = useState<SpiderId>("miles");
+  const spiderRef = useRef<SpiderId>("miles");
+  spiderRef.current = spider;
   // A joined tracker is always active; the joiner has no upload gate to update.
   const ignoreStatus = useCallback((_status: TrackerStatus) => {}, []);
   const nameRef = useRef("");
 
   // Accept the invite: called by the publisher only after the first real fix.
   const acquireToken = useCallback(async (): Promise<AcquireResult> => {
-    const result = await joinInvite(inviteToken, nameRef.current);
+    const result = await joinInvite(inviteToken, nameRef.current, spiderRef.current);
     if (!result.ok) return { ok: false, reason: failFromApi(result.code) };
     const joined: ParticipantCredentials = {
       sessionId: result.data.sessionId,
@@ -72,6 +77,12 @@ function JoinFlow({ inviteToken, stored }: { inviteToken: string; stored: Partic
   }, [stored, load]);
 
   const invite = lookup.kind === "ready" ? lookup.invite : null;
+  const takenSpider = invite?.creatorSpider ?? null;
+
+  // Never pre-select the creator's Spider.
+  useEffect(() => {
+    if (takenSpider && spider === takenSpider) setSpider(firstFreeSpider(takenSpider));
+  }, [takenSpider, spider]);
   const countdown = useCountdown(invite?.expiresAt ?? null, invite?.serverTime ?? null);
 
   // Joined (now or earlier on this device): the full live tracker.
@@ -86,9 +97,17 @@ function JoinFlow({ inviteToken, stored }: { inviteToken: string; stored: Partic
   };
 
   if (publisher.failure) {
+    // Spider clash (checked server-side): back to the picker with fresh invite info.
+    const retry =
+      publisher.failure === "spider_taken"
+        ? () => {
+            publisher.clearFailure();
+            void load();
+          }
+        : start;
     return (
       <Display>
-        <JoinFailure reason={publisher.failure} onRetry={start} />
+        <JoinFailure reason={publisher.failure} onRetry={retry} />
       </Display>
     );
   }
@@ -96,7 +115,7 @@ function JoinFlow({ inviteToken, stored }: { inviteToken: string; stored: Partic
   if (publisher.phase === "locating" || publisher.phase === "sharing") {
     return (
       <Display>
-        <SetDeviceStatus text="REQUESTING GPS..." led="warn" blink />
+        <SetDeviceStatus text="REQUESTING GPS..." led="warn" blink sprite={spider} />
         <p className="console__headline">
           {publisher.info.gps === "lost" ? "SEARCHING FOR GPS" : "REQUESTING LOCATION"}
           <span className="cursor">_</span>
@@ -131,7 +150,7 @@ function JoinFlow({ inviteToken, stored }: { inviteToken: string; stored: Partic
 
   return (
     <Display>
-      <SetDeviceStatus text="INVITE RECEIVED" led="ok" />
+      <SetDeviceStatus text="INVITE RECEIVED" led="ok" sprite={spider} />
       <p className="console__headline">{creatorName} WANTS TO FIND YOU</p>
       <p className="console__copy">
         IF YOU START SHARING, YOU AND {creatorName} WILL SEE EACH OTHER&apos;S APPROXIMATE LIVE LOCATION UNTIL EITHER OF YOU
@@ -140,7 +159,7 @@ function JoinFlow({ inviteToken, stored }: { inviteToken: string; stored: Partic
       <p className="console__copy console__copy--dim">NOTHING IS SHARED UNTIL YOU PRESS START.</p>
 
       <label className="console__label" htmlFor="friend-name">
-        ENTER YOUR NAME
+        ENTER YOUR CODENAME
       </label>
       <div className="readout">
         <span className="readout__prompt" aria-hidden>
@@ -159,6 +178,7 @@ function JoinFlow({ inviteToken, stored }: { inviteToken: string; stored: Partic
           enterKeyHint="go"
         />
       </div>
+      <SpiderPicker value={spider} onChange={setSpider} taken={takenSpider} />
       <PixelButton variant="screen" onClick={start} disabled={!isValidName(name.trim())}>
         START SHARING
       </PixelButton>
@@ -168,7 +188,7 @@ function JoinFlow({ inviteToken, stored }: { inviteToken: string; stored: Partic
 }
 
 function failFromApi(code: ErrorCode): FailReason {
-  if (code === "expired" || code === "invite_used" || code === "network") return code;
+  if (code === "expired" || code === "invite_used" || code === "network" || code === "spider_taken") return code;
   if (code === "not_found") return "ended";
   return "server";
 }
@@ -191,6 +211,12 @@ const JOIN_FAIL_COPY: Record<FailReason, { title: string; status: string; body: 
   },
   network: { title: "CONNECTION LOST", status: "CONNECTION LOST", body: "COULDN'T REACH THE TRACKER. NOTHING WAS SHARED.", retry: true },
   server: { title: "TRACKER NETWORK DOWN", status: "NETWORK DOWN", body: "NOTHING WAS SHARED. TRY AGAIN IN A MOMENT.", retry: true },
+  spider_taken: {
+    title: "SPIDER TAKEN",
+    status: "SPIDER TAKEN",
+    body: "YOUR FRIEND ALREADY USES THAT SPIDER. NOTHING WAS SHARED. PICK ANOTHER ONE.",
+    retry: true,
+  },
 };
 
 function JoinFailure({ reason, onRetry }: { reason: FailReason; onRetry: () => void }) {

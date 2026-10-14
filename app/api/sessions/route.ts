@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { hashToken, newToken } from "@/lib/server/tokens";
 import { cleanName, isValidName } from "@/lib/names";
 import type { CreatedSession } from "@/lib/shared/types";
+import { DEFAULT_SPIDER, isSpiderId } from "@/lib/shared/spiders";
 
 /**
  * Create a tracker. Returns the creator's capabilities exactly once.
@@ -13,6 +14,9 @@ export async function POST(req: Request) {
   const body = await readJson(req);
   const name = typeof body?.creatorName === "string" ? cleanName(body.creatorName).trim() : "";
   if (!isValidName(name)) return fail("invalid");
+  // Optional for older clients; must be a known identity when present.
+  if (body?.spider !== undefined && !isSpiderId(body.spider)) return fail("invalid");
+  const spider = isSpiderId(body?.spider) ? body.spider : DEFAULT_SPIDER;
 
   const creatorToken = newToken();
   const inviteToken = newToken();
@@ -26,6 +30,7 @@ export async function POST(req: Request) {
         creator_token_hash: hashToken(creatorToken),
         invite_token_hash: hashToken(inviteToken),
         channel_key: channelKey,
+        creator_spider: spider,
       })
       .select("id, expires_at")
       .single<{ id: string; expires_at: string }>();

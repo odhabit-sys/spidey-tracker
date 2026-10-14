@@ -38,3 +38,24 @@ export function formatAgo(ageMs: number): string {
   const m = Math.floor(s / 60);
   return m < 60 ? `${m} MIN AGO` : "OVER 1 HR AGO";
 }
+
+/**
+ * Presentation-only proximity alert, derived from the already-computed
+ * straight-line distance (no tracking changes). Unknown distance = LOCATED.
+ */
+export type Proximity = "located" | "approaching" | "vicinity";
+export const APPROACHING_M = 400;
+export const VICINITY_M = 75;
+
+export function proximity(distanceM: number | null): Proximity {
+  if (distanceM === null) return "located";
+  if (distanceM <= VICINITY_M) return "vicinity";
+  if (distanceM <= APPROACHING_M) return "approaching";
+  return "located";
+}
+
+export const PROXIMITY_LABEL: Record<Proximity, string> = {
+  located: "SPIDEY LOCATED",
+  approaching: "TARGET APPROACHING",
+  vicinity: "SPIDEY IN YOUR VICINITY",
+};

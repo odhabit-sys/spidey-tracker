@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import EqBars from "@/components/EqBars";
 import PixelButton from "@/components/PixelButton";
-import { SetDeviceStatus } from "@/components/device/DeviceStatus";
+import { SetDeviceStatus, SetTelemetry } from "@/components/device/DeviceStatus";
 import { endTracker, getTrackerState, type ErrorCode } from "@/lib/client/api";
 import { forgetCredentials } from "@/lib/client/participantStore";
 import { subscribeToTracker } from "@/lib/client/realtime";
@@ -16,6 +16,7 @@ import { useCountdown, useServerNow } from "@/lib/client/useCountdown";
 import type { FailReason, Publisher } from "@/lib/client/useLocationPublisher";
 import { useWakeLock } from "@/lib/client/useWakeLock";
 import { formatAccuracy } from "@/lib/distance";
+import { firstFreeSpider } from "@/lib/shared/spiders";
 import { formatAgo, freshness } from "@/lib/shared/tracking";
 import type { ParticipantCredentials, TrackerState, TrackerStatus } from "@/lib/shared/types";
 import Display, { Loading } from "./Display";
@@ -41,7 +42,11 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
   const [fatal, setFatal] = useState<Fatal | null>(null);
   const [netError, setNetError] = useState<ErrorCode | null>(null);
   const [ending, setEnding] = useState(false);
+  // True from a STOP press until sharing starts again: never mistake our own
+  // STOP (server not yet updated) for "paused because the page reloaded".
+  const [stoppedHere, setStoppedHere] = useState(false);
   const inFlight = useRef(false);
+  const refreshQueued = useRef(false); // a refresh requested while one was in flight
   const endingRef = useRef(false); // our own END triggers a realtime ping; don't treat it as "not found"
 
   const countdown = useCountdown(state?.expiresAt ?? creds.expiresAt, state?.serverTime ?? null);
@@ -58,10 +63,20 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
   );
 
   const refresh = useCallback(async () => {
-    if (inFlight.current || endingRef.current) return;
+    if (endingRef.current) return;
+    if (inFlight.current) {
+      // Don't drop it: e.g. right after STOP the screen must not show stale state
+      // until the next poll. Run once more when the current request finishes.
+      refreshQueued.current = true;
+      return;
+    }
     inFlight.current = true;
     const result = await getTrackerState(creds.sessionId, creds.token);
     inFlight.current = false;
+    if (refreshQueued.current) {
+      refreshQueued.current = false;
+      queueMicrotask(() => void refreshRef.current());
+    }
     if (result.ok) {
       setState(result.data);
       onStatus(result.data.status);
@@ -72,6 +87,8 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
       setNetError(result.code); // keep showing the last good state
     }
   }, [creds.sessionId, creds.token, finish, onStatus]);
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
 
   useEffect(() => {
     if (fatal) return;
@@ -104,6 +121,15 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
 
   useWakeLock(publisher.phase === "sharing");
 
+  const { stop: publisherStop } = publisher;
+  const stop = useCallback(() => {
+    setStoppedHere(true);
+    void publisherStop();
+  }, [publisherStop]);
+  useEffect(() => {
+    if (publisher.phase === "sharing" || publisher.phase === "locating") setStoppedHere(false);
+  }, [publisher.phase]);
+
   async function onEnd() {
     setEnding(true);
     endingRef.current = true;
@@ -117,12 +143,27 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
     setEnding(false);
   }
 
+  // Bottom-left portrait: the other person once they've joined, otherwise you.
+  const portrait = state ? (state.peer.spider ?? state.me.spider) : undefined;
+  // Frame telemetry for the non-map screens (the map view sets its own).
+  const tele = state && (
+    <SetTelemetry
+      sig={0}
+      gps={publisher.phase !== "sharing" || publisher.info.accuracy === null ? null : formatAccuracy(publisher.info.accuracy).replace(/\s/g, "")}
+      link={!netError}
+      p2p={state.me.share === "sharing" && state.peer.share === "sharing"}
+      trk={state.status === "active" ? 2 : 1}
+      live={null}
+      ident={`${creds.sessionId.slice(0, 4)}·${creds.sessionId.slice(-4)}`.toUpperCase()}
+    />
+  );
+
   // ---- Terminal states ------------------------------------------------------
   if (fatal) {
     const copy = FATAL_COPY[fatal];
     return (
       <Display>
-        <SetDeviceStatus text={copy.status} led="err" />
+        <SetDeviceStatus sprite={portrait} text={copy.status} led="err" />
         <p className="console__headline">{copy.title}</p>
         <p className="console__copy">{copy.body}</p>
         <PixelButton variant="screen" onClick={() => router.push("/")}>
@@ -135,6 +176,7 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
   if (!state) {
     return (
       <Display>
+        {tele}
         <Loading text="CONNECTING" />
       </Display>
     );
@@ -151,7 +193,8 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
     const copy = PUBLISH_FAIL_COPY[publisher.failure];
     return (
       <Display>
-        <SetDeviceStatus text={copy.status} led="err" />
+        {tele}
+        <SetDeviceStatus sprite={portrait} text={copy.status} led="err" />
         <p className="console__headline">{copy.title}</p>
         <p className="console__copy">{copy.body}</p>
         {publisher.failure === "denied" && (
@@ -172,7 +215,8 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
   if (state.status === "waiting") {
     return (
       <Display>
-        <SetDeviceStatus text="WAITING FOR FRIEND" led="warn" blink />
+        {tele}
+        <SetDeviceStatus sprite={portrait} text="WAITING FOR FRIEND" led="warn" blink />
         <p className="console__headline">
           WAITING FOR FRIEND<span className="cursor">_</span>
         </p>
@@ -196,7 +240,8 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
   if (publisher.phase === "locating") {
     return (
       <Display>
-        <SetDeviceStatus text="REQUESTING GPS..." led="warn" blink />
+        {tele}
+        <SetDeviceStatus sprite={portrait} text="REQUESTING GPS..." led="warn" blink />
         <p className="console__headline">
           {publisher.info.gps === "lost" ? "SEARCHING FOR GPS" : "REQUESTING LOCATION"}
           <span className="cursor">_</span>
@@ -218,7 +263,11 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
     const ageMs = Math.max(0, serverNow - Date.parse(peerLoc.updatedAt));
     return (
       <TrackingView
+        sessionId={creds.sessionId}
         peerName={peer}
+        peerSpider={state.peer.spider ?? firstFreeSpider(state.me.spider)}
+        myName={state.me.name}
+        mySpider={state.me.spider}
         peerLocation={peerLoc}
         ageMs={ageMs}
         freshness={freshness(ageMs)}
@@ -227,7 +276,7 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
         connectionLost={Boolean(netError)}
         myUploadStalled={publisher.info.stalled}
         stopping={false}
-        onStop={publisher.stop}
+        onStop={stop}
         ending={ending}
         onEnd={onEnd}
       />
@@ -240,7 +289,9 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
     const { info } = publisher;
     return (
       <Display compact>
+        {tele}
         <SetDeviceStatus
+          sprite={portrait}
           text={info.net === "offline" ? "CONNECTION LOST" : info.stalled ? "UPDATES STALLED" : "SHARING LOCATION"}
           led={info.net === "offline" ? "err" : info.stalled ? "warn" : "ok"}
           blink={!info.stalled && info.net !== "offline"}
@@ -264,7 +315,7 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
           </p>
         )}
         {netLine}
-        <PixelButton variant="red" className="stop-btn" onClick={publisher.stop} disabled={publisher.phase === "stopping"}>
+        <PixelButton variant="red" className="stop-btn" onClick={stop} disabled={publisher.phase === "stopping"}>
           {publisher.phase === "stopping" ? <span className="blink">STOPPING...</span> : "STOP SHARING"}
         </PixelButton>
         {endControl}
@@ -273,15 +324,17 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
   }
 
   // ---- Active: I'm NOT sharing (never started, stopped, or paused) --------
-  const pausedByReload = state.me.share === "sharing"; // server still thinks I'm sharing: page was closed/reloaded
+  // Server still thinks I'm sharing but this page isn't: it was closed/reloaded.
+  const pausedByReload = state.me.share === "sharing" && !stoppedHere;
   const peerSharing = state.peer.share === "sharing";
   return (
     <Display>
-      <SetDeviceStatus text={pausedByReload ? "SHARING PAUSED" : "NOT SHARING"} led="warn" />
+        {tele}
+      <SetDeviceStatus sprite={portrait} text={pausedByReload ? "SHARING PAUSED" : "NOT SHARING"} led="warn" />
       <p className="console__headline">
         {pausedByReload
           ? "SHARING PAUSED"
-          : state.me.share === "stopped"
+          : state.me.share === "stopped" || stoppedHere
             ? "YOU STOPPED SHARING"
             : state.role === "creator"
               ? `${peer} JOINED`
@@ -303,7 +356,7 @@ export default function LiveTracker({ creds, publisher, onStatus }: Props) {
         {pausedByReload ? "RESUME SHARING" : "START SHARING"}
       </PixelButton>
       {pausedByReload && (
-        <PixelButton variant="red" onClick={publisher.stop}>
+        <PixelButton variant="red" onClick={stop}>
           STOP SHARING
         </PixelButton>
       )}
@@ -346,6 +399,7 @@ const PUBLISH_FAIL_COPY: Record<Exclude<FailReason, "ended" | "expired">, { titl
   },
   unsupported: { title: "LOCATION NOT AVAILABLE", status: "NO LOCATION", body: "THIS BROWSER CAN'T SHARE LOCATION HERE. OPEN THE LINK IN SAFARI OR CHROME." },
   invite_used: { title: "INVITE ALREADY USED", status: "INVITE USED", body: "THIS INVITE WAS ACCEPTED ON ANOTHER DEVICE." },
+  spider_taken: { title: "SPIDER TAKEN", status: "SPIDER TAKEN", body: "YOUR FRIEND ALREADY USES THAT SPIDER." },
   network: { title: "CONNECTION LOST", status: "CONNECTION LOST", body: "COULDN'T REACH THE TRACKER. TRY AGAIN." },
   server: { title: "TRACKER NETWORK DOWN", status: "NETWORK DOWN", body: "TRY AGAIN IN A MOMENT." },
 };

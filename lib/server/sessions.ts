@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabaseAdmin";
 import { hashToken } from "./tokens";
 import { CHANGED_EVENT, trackerTopic, type Role, type ShareState, type TrackerStatus } from "@/lib/shared/types";
+import { firstFreeSpider, isSpiderId, type SpiderId } from "@/lib/shared/spiders";
 
 export interface SessionRow {
   id: string;
@@ -14,10 +15,12 @@ export interface SessionRow {
   expires_at: string;
   creator_token_hash: string;
   joiner_token_hash: string | null;
+  creator_spider: string;
+  joiner_spider: string | null;
 }
 
 const SESSION_COLUMNS =
-  "id, creator_name, joiner_name, status, creator_share, joiner_share, channel_key, expires_at, creator_token_hash, joiner_token_hash";
+  "id, creator_name, joiner_name, status, creator_share, joiner_share, channel_key, expires_at, creator_token_hash, joiner_token_hash, creator_spider, joiner_spider";
 
 export type Lookup<T> = { kind: "ok" } & T | { kind: "not_found" } | { kind: "expired" };
 
@@ -62,6 +65,20 @@ export async function findByInvite(inviteToken: string): Promise<Lookup<{ row: S
     .maybeSingle<SessionRow>();
   if (error) throw error;
   return checkExpiry(data);
+}
+
+/**
+ * Spider identities for a tracker. Defensive defaults keep rows created before
+ * migration 003 (or by older code) displayable, and never identical.
+ */
+export function spidersOf(row: Pick<SessionRow, "creator_spider" | "joiner_spider" | "joiner_token_hash">): {
+  creator: SpiderId;
+  joiner: SpiderId | null;
+} {
+  const creator: SpiderId = isSpiderId(row.creator_spider) ? row.creator_spider : "classic";
+  if (!row.joiner_token_hash) return { creator, joiner: null };
+  const joiner = isSpiderId(row.joiner_spider) && row.joiner_spider !== creator ? row.joiner_spider : firstFreeSpider(creator);
+  return { creator, joiner };
 }
 
 export const shareColumn = (role: Role) => (role === "creator" ? "creator_share" : "joiner_share");

@@ -31,6 +31,7 @@ export type FailReason =
   | "expired"
   | "ended" // tracker no longer exists (someone pressed END)
   | "invite_used"
+  | "spider_taken" // joiner picked the creator's Spider (server refused; nothing shared)
   | "network" // could not reach the server to accept the invite
   | "server";
 

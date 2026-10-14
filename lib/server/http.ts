@@ -6,6 +6,7 @@ const STATUS: Record<ApiErrorCode, number> = {
   invalid: 400,
   not_found: 404,
   invite_used: 409,
+  spider_taken: 409,
   not_active: 409,
   expired: 410,
   rate_limited: 429,

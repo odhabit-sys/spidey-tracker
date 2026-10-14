@@ -1,5 +1,6 @@
 -- Spidey Tracker schema (mutual tracking). Run once in the Supabase SQL Editor
--- on a NEW project. Existing projects: run supabase/migrations/ in order instead.
+-- on a NEW project (includes migrations 002 + 003). Existing projects: run
+-- supabase/migrations/ in order instead.
 --
 -- Security model:
 --   * RLS is ON with NO policies, so the anon/publishable key can neither read
@@ -28,8 +29,14 @@ create table if not exists public.sessions (
   status             text not null default 'waiting' check (status in ('waiting', 'active')),
   creator_share      text not null default 'idle' check (creator_share in ('idle', 'sharing', 'stopped')),
   joiner_share       text not null default 'idle' check (joiner_share in ('idle', 'sharing', 'stopped')),
+  -- Spider identity per participant (see lib/shared/spiders.ts); never the same twice.
+  creator_spider     text not null default 'classic'
+                     check (creator_spider in ('classic', 'miles', 'gwen', '2099', 'symbiote', 'scarlet', 'stealth', 'solar')),
+  joiner_spider      text
+                     check (joiner_spider is null or joiner_spider in ('classic', 'miles', 'gwen', '2099', 'symbiote', 'scarlet', 'stealth', 'solar')),
   created_at         timestamptz not null default now(),
-  expires_at         timestamptz not null default now() + interval '1 hour'
+  expires_at         timestamptz not null default now() + interval '1 hour',
+  constraint sessions_distinct_spiders check (joiner_spider is null or joiner_spider <> creator_spider)
 );
 
 create index if not exists sessions_expires_at_idx on public.sessions (expires_at);

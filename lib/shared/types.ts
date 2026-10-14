@@ -1,9 +1,12 @@
 // Types shared by API routes and the browser.
 
+import type { SpiderId } from "./spiders";
+
 export type ApiErrorCode =
   | "invalid"
   | "not_found"
   | "invite_used"
+  | "spider_taken" // the other participant already uses that Spider identity
   | "not_active" // tracker still waiting for the invite to be accepted
   | "expired"
   | "rate_limited"
@@ -51,13 +54,16 @@ export interface TrackerState {
   status: TrackerStatus;
   expiresAt: string;
   serverTime: string;
-  me: { name: string; share: ShareState };
-  peer: { name: string | null; share: ShareState; location: PeerLocation | null };
+  me: { name: string; share: ShareState; spider: SpiderId };
+  /** `spider` is null until someone has joined. */
+  peer: { name: string | null; share: ShareState; spider: SpiderId | null; location: PeerLocation | null };
 }
 
 /** GET /api/join/[token] */
 export interface InviteInfo {
   creatorName: string;
+  /** Shown as TAKEN in the joiner's Spider picker. */
+  creatorSpider: SpiderId;
   expiresAt: string;
   serverTime: string;
 }

@@ -16,8 +16,6 @@ export const SPRITE_PALETTE: Palette = {
   W: "#f4f1e6", // eyes
   B: "#2457d6", // suit blue
   G: "#8a9099", // hardware glyph grey
-  C: "#59d8ff", // creator marker cyan
-  c: "#1f7fa8", // creator marker cyan shade
 };
 
 /** Head-on mask emblem used in the header and app icons (16x16). */
@@ -144,22 +142,6 @@ export const SPEAKER: Sprite = {
     "GGGG.G.G.",
     "..GG...G.",
     "...G..G..",
-  ],
-};
-
-/** The creator's own position on the map: small cyan pixel locator (9x9). */
-export const ME_MARKER: Sprite = {
-  palette: SPRITE_PALETTE,
-  rows: [
-    "...KKK...",
-    "..KCCCK..",
-    ".KCCCCCK.",
-    "KCCWWWCCK",
-    "KCCWKWCCK",
-    "KCCWWWCCK",
-    ".KcCCCcK.",
-    "..KcccK..",
-    "...KKK...",
   ],
 };
 

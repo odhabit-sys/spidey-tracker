@@ -1,5 +1,5 @@
 import { fail, ok, serverError, UUID_RE } from "@/lib/server/http";
-import { findParticipant, otherRole, purgeSession } from "@/lib/server/sessions";
+import { findParticipant, otherRole, purgeSession, spidersOf } from "@/lib/server/sessions";
 import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { bearerToken } from "@/lib/server/tokens";
 import type { PeerLocation, TrackerState } from "@/lib/shared/types";
@@ -23,6 +23,7 @@ export async function GET(req: Request, { params }: Ctx) {
     const peer = otherRole(role);
     const myShare = role === "creator" ? s.creator_share : s.joiner_share;
     const peerShare = peer === "creator" ? s.creator_share : s.joiner_share;
+    const spiders = spidersOf(s);
 
     let location: PeerLocation | null = null;
     if (s.status === "active" && myShare === "sharing" && peerShare === "sharing") {
@@ -50,8 +51,8 @@ export async function GET(req: Request, { params }: Ctx) {
       status: s.status,
       expiresAt: s.expires_at,
       serverTime: new Date().toISOString(),
-      me: { name: role === "creator" ? s.creator_name : (s.joiner_name ?? ""), share: myShare },
-      peer: { name: peer === "creator" ? s.creator_name : s.joiner_name, share: peerShare, location },
+      me: { name: role === "creator" ? s.creator_name : (s.joiner_name ?? ""), share: myShare, spider: (role === "creator" ? spiders.creator : spiders.joiner) ?? "classic" },
+      peer: { name: peer === "creator" ? s.creator_name : s.joiner_name, share: peerShare, spider: peer === "creator" ? spiders.creator : spiders.joiner, location },
     });
   } catch (err) {
     return serverError("read session", err);

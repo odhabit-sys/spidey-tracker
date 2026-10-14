@@ -4,14 +4,17 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import EqBars from "@/components/EqBars";
 import PixelButton from "@/components/PixelButton";
+import SpiderPicker from "@/components/SpiderPicker";
 import { SetDeviceStatus } from "@/components/device/DeviceStatus";
 import { cleanName, isValidName } from "@/lib/names";
 import { createSession } from "@/lib/client/api";
 import { saveCredentials } from "@/lib/client/participantStore";
+import { DEFAULT_SPIDER, type SpiderId } from "@/lib/shared/spiders";
 
 export default function CreateTrackerForm() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [spider, setSpider] = useState<SpiderId>(DEFAULT_SPIDER);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +27,7 @@ export default function CreateTrackerForm() {
     }
     setBusy(true);
     setError(null);
-    const result = await createSession(trimmed);
+    const result = await createSession(trimmed, spider);
     if (result.ok) {
       saveCredentials(result.data);
       router.push(`/tracker/${result.data.sessionId}`);
@@ -36,8 +39,13 @@ export default function CreateTrackerForm() {
 
   return (
     <form className="console" onSubmit={onSubmit} noValidate>
-      {busy && <SetDeviceStatus text="CREATING TRACKER..." led="warn" blink />}
-      {error && <SetDeviceStatus text="ERROR" led="err" />}
+      {busy ? (
+        <SetDeviceStatus text="CREATING TRACKER..." led="warn" blink sprite={spider} />
+      ) : error ? (
+        <SetDeviceStatus text="ERROR" led="err" sprite={spider} />
+      ) : (
+        <SetDeviceStatus text="SPIDEY • READY" sprite={spider} />
+      )}
 
       <p className="console__headline">
         READY TO TRACK<span className="cursor">_</span>
@@ -45,7 +53,7 @@ export default function CreateTrackerForm() {
       <EqBars />
 
       <label className="console__label" htmlFor="creator-name">
-        WHAT SHOULD YOUR FRIEND CALL YOU?
+        ENTER YOUR CODENAME
       </label>
       <div className="readout">
         <span className="readout__prompt" aria-hidden>
@@ -63,6 +71,8 @@ export default function CreateTrackerForm() {
           enterKeyHint="go"
         />
       </div>
+
+      <SpiderPicker value={spider} onChange={setSpider} />
 
       {error && (
         <p className="console__error" role="alert">

@@ -1,9 +1,10 @@
 import { fail, ok, readJson, serverError } from "@/lib/server/http";
-import { findByInvite, notifyChanged } from "@/lib/server/sessions";
+import { findByInvite, notifyChanged, spidersOf } from "@/lib/server/sessions";
 import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { hashToken, looksLikeToken, newToken } from "@/lib/server/tokens";
 import { cleanName, isValidName } from "@/lib/names";
 import type { InviteInfo, JoinedSession } from "@/lib/shared/types";
+import { firstFreeSpider, isSpiderId } from "@/lib/shared/spiders";
 
 type Ctx = { params: Promise<{ token: string }> };
 
@@ -18,6 +19,7 @@ export async function GET(_req: Request, { params }: Ctx) {
     if (found.row.joiner_token_hash || found.row.status !== "waiting") return fail("invite_used");
     return ok<InviteInfo>({
       creatorName: found.row.creator_name,
+      creatorSpider: spidersOf(found.row).creator,
       expiresAt: found.row.expires_at,
       serverTime: new Date().toISOString(),
     });
@@ -38,15 +40,22 @@ export async function POST(req: Request, { params }: Ctx) {
   const body = await readJson(req);
   const joinerName = typeof body?.friendName === "string" ? cleanName(body.friendName).trim() : "";
   if (!isValidName(joinerName)) return fail("invalid");
+  if (body?.spider !== undefined && !isSpiderId(body.spider)) return fail("invalid");
 
   try {
     const found = await findByInvite(token);
     if (found.kind !== "ok") return fail(found.kind);
 
+    // Server-side uniqueness: never trust the client's picker. (The database
+    // also refuses identical identities via sessions_distinct_spiders.)
+    const creatorSpider = spidersOf(found.row).creator;
+    if (body?.spider === creatorSpider) return fail("spider_taken");
+    const spider = isSpiderId(body?.spider) ? body.spider : firstFreeSpider(creatorSpider);
+
     const joinerToken = newToken();
     const { data, error } = await supabaseAdmin()
       .from("sessions")
-      .update({ joiner_token_hash: hashToken(joinerToken), joiner_name: joinerName, status: "active" })
+      .update({ joiner_token_hash: hashToken(joinerToken), joiner_name: joinerName, joiner_spider: spider, status: "active" })
       .eq("id", found.row.id)
       .eq("status", "waiting")
       .is("joiner_token_hash", null)

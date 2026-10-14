@@ -3,6 +3,8 @@
 // The real MapLibre map that fills the tracker display.
 //
 // Honesty rules:
+//  * Each person is drawn as their own chosen Spider: the other person full
+//    size, you smaller on a cyan "YOU" ring.
 //  * The Spidey marker only ever sits on coordinates the friend's phone sent.
 //    New fixes SNAP the marker (no interpolated "fake" path) and play a ping.
 //  * The red circle is the friend's reported GPS accuracy radius.
@@ -12,7 +14,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef } from "react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import { circlePolygon } from "@/lib/geo";
-import { ME_MARKER, SPIDEY, spriteSvgMarkup } from "@/lib/sprites";
+import { spriteSvgMarkup } from "@/lib/sprites";
+import { SPIDER_SPRITES } from "@/lib/spiderSprites";
+import type { SpiderId } from "@/lib/shared/spiders";
 import type { Freshness } from "@/lib/shared/tracking";
 import { applySpideyPalette, mapStyleUrl } from "./mapStyle";
 
@@ -22,13 +26,15 @@ export interface MapPoint {
   accuracy: number;
 }
 
-export type FollowMode = "spidey" | "both" | "free";
+export type FollowMode = "spidey" | "me" | "both" | "free";
 
 interface Props {
   apiKey: string;
   friend: MapPoint & { updatedAt: string };
   freshness: Freshness;
   me: MapPoint | null;
+  friendSpider: SpiderId;
+  meSpider: SpiderId;
   follow: FollowMode;
   /** Bump to force a recenter even if `follow` didn't change. */
   recenterNonce: number;
@@ -39,14 +45,25 @@ interface Props {
 const ACCURACY_SOURCE = "spidey-accuracy";
 const SPIDEY_ZOOM = 16;
 
-export default function TrackerMap({ apiKey, friend, freshness, me, follow, recenterNonce, onUserMove, onMapError }: Props) {
+export default function TrackerMap({
+  apiKey,
+  friend,
+  freshness,
+  me,
+  friendSpider,
+  meSpider,
+  follow,
+  recenterNonce,
+  onUserMove,
+  onMapError,
+}: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const friendMarker = useRef<Marker | null>(null);
   const meMarker = useRef<Marker | null>(null);
   const ready = useRef(false);
-  const latest = useRef({ friend, me, follow });
-  latest.current = { friend, me, follow };
+  const latest = useRef({ friend, me, follow, friendSpider, meSpider });
+  latest.current = { friend, me, follow, friendSpider, meSpider };
   const callbacks = useRef({ onUserMove, onMapError });
   callbacks.current = { onUserMove, onMapError };
 
@@ -80,7 +97,7 @@ export default function TrackerMap({ apiKey, friend, freshness, me, follow, rece
       // Markers are plain DOM built from our pixel sprites.
       const spideyEl = document.createElement("div");
       spideyEl.className = "spidey-marker";
-      spideyEl.innerHTML = `<span class="spidey-marker__ping"></span>${spriteSvgMarkup(SPIDEY, 3)}`;
+      spideyEl.innerHTML = friendMarkup(latest.current.friendSpider);
       spideyEl.setAttribute("aria-label", "Friend's location");
       friendMarker.current = new maplibre.Marker({ element: spideyEl, anchor: "center" })
         .setLngLat([start.longitude, start.latitude])
@@ -88,9 +105,12 @@ export default function TrackerMap({ apiKey, friend, freshness, me, follow, rece
 
       const meEl = document.createElement("div");
       meEl.className = "me-marker";
-      meEl.innerHTML = spriteSvgMarkup(ME_MARKER, 2);
+      meEl.innerHTML = meMarkup(latest.current.meSpider);
       meEl.setAttribute("aria-label", "Your location");
       meMarker.current = new maplibre.Marker({ element: meEl, anchor: "center" });
+      // My fix may have arrived before the map finished loading.
+      const meNow = latest.current.me;
+      if (meNow) meMarker.current.setLngLat([meNow.longitude, meNow.latitude]).addTo(map);
 
       let styled = false;
       map.on("style.load", () => {
@@ -146,6 +166,16 @@ export default function TrackerMap({ apiKey, friend, freshness, me, follow, rece
     if (latest.current.follow !== "free") recenter(map, latest.current.follow, friend, latest.current.me);
   }, [friend.latitude, friend.longitude, friend.accuracy, friend.updatedAt]);
 
+  // ---- Identity art (fixed per tracker, but may arrive after the map) ----
+  useEffect(() => {
+    const el = friendMarker.current?.getElement();
+    if (el) el.innerHTML = friendMarkup(friendSpider);
+  }, [friendSpider]);
+  useEffect(() => {
+    const el = meMarker.current?.getElement();
+    if (el) el.innerHTML = meMarkup(meSpider);
+  }, [meSpider]);
+
   // ---- Freshness styling (dims when stale, greys when offline) ----
   useEffect(() => {
     const el = friendMarker.current?.getElement();
@@ -183,7 +213,19 @@ function accuracyData(p: MapPoint) {
   return circlePolygon(p.latitude, p.longitude, Math.max(p.accuracy, 3));
 }
 
+function friendMarkup(spider: SpiderId) {
+  return `<span class="spidey-marker__ping"></span>${spriteSvgMarkup(SPIDER_SPRITES[spider], 3)}`;
+}
+
+function meMarkup(spider: SpiderId) {
+  return `<span class="me-marker__ring"></span>${spriteSvgMarkup(SPIDER_SPRITES[spider], 2)}<span class="me-marker__tag">YOU</span>`;
+}
+
 function recenter(map: MapLibreMap, mode: FollowMode, friend: MapPoint, me: MapPoint | null) {
+  if (mode === "me" && me) {
+    map.easeTo({ center: [me.longitude, me.latitude], zoom: Math.max(map.getZoom(), SPIDEY_ZOOM - 1), duration: 600 });
+    return;
+  }
   if (mode === "both" && me) {
     map.fitBounds(
       [

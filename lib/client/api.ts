@@ -2,6 +2,7 @@
 // mapped to a short, user-facing pixel message.
 
 import type { ApiErrorCode, CreatedSession, InviteInfo, JoinedSession, TrackerState } from "@/lib/shared/types";
+import type { SpiderId } from "@/lib/shared/spiders";
 
 export type ErrorCode = ApiErrorCode | "network";
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; code: ErrorCode; message: string };
@@ -11,6 +12,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   not_found: "TRACKER NOT FOUND",
   expired: "TRACKER EXPIRED",
   invite_used: "INVITE ALREADY USED",
+  spider_taken: "THAT SPIDER IS TAKEN",
   not_active: "WAITING FOR FRIEND",
   invalid: "CHECK YOUR INPUT",
   rate_limited: "TOO FAST, WAIT A MOMENT",
@@ -39,8 +41,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { token?: s
   return { ok: false, code, message: MESSAGES[code] };
 }
 
-export const createSession = (creatorName: string) =>
-  apiFetch<CreatedSession>("/api/sessions", { method: "POST", body: JSON.stringify({ creatorName }) });
+export const createSession = (creatorName: string, spider: SpiderId) =>
+  apiFetch<CreatedSession>("/api/sessions", { method: "POST", body: JSON.stringify({ creatorName, spider }) });
 
 export const getTrackerState = (sessionId: string, token: string) =>
   apiFetch<TrackerState>(`/api/sessions/${sessionId}`, { token });
@@ -51,10 +53,10 @@ export const endTracker = (sessionId: string, token: string) =>
 
 export const getInvite = (inviteToken: string) => apiFetch<InviteInfo>(`/api/join/${encodeURIComponent(inviteToken)}`);
 
-export const joinInvite = (inviteToken: string, friendName: string) =>
+export const joinInvite = (inviteToken: string, friendName: string, spider: SpiderId) =>
   apiFetch<JoinedSession>(`/api/join/${encodeURIComponent(inviteToken)}`, {
     method: "POST",
-    body: JSON.stringify({ friendName }),
+    body: JSON.stringify({ friendName, spider }),
   });
 
 /** `ageMs` = how old the fix is on the phone's own clock; the server derives the capture time. */
