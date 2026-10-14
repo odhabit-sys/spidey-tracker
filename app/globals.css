@@ -1,0 +1,969 @@
+/* ==========================================================================
+   Spidey Tracker: a fictional early-2000s handheld tracker, drawn in CSS.
+   Hard edges, black pixel outlines, flat metallic banding, no blur.
+   ========================================================================== */
+
+:root {
+  /* Frame */
+  --frame: #2f8fce;
+  --frame-hi: #8fd3f2;
+  --frame-lo: #1b5f96;
+  --frame-edge: #0d2a4d;
+  /* Display */
+  --screen-top: #2a2d32;
+  --screen-bottom: #1e2125;
+  --screen-ink: #121417;
+  --screen-text: #8fd3f2;
+  --screen-muted: #5c8aa3;
+  /* Hardware */
+  --paper: #f1f1ec;
+  --paper-lo: #b4b9be;
+  --orange: #f2a23a;
+  --badge: #1b2a58;
+  /* Accents */
+  --red: #e3262f;
+  --red-lo: #9c141c;
+  --cyan: #59d8ff;
+  --ink: #0b0c0f;
+  --text: #d9ecf7;
+  --led-green: #3dff7d;
+  --led-amber: #ffc23d;
+  --led-red: #ff4d4d;
+
+  --px: 3px;
+  --font-pixel: var(--font-silkscreen), ui-monospace, monospace;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--frame-edge);
+  color: var(--text);
+  font-family: var(--font-pixel);
+  font-size: 16px;
+  line-height: 1.3;
+  -webkit-font-smoothing: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+/* ==========================================================================
+   Device shell
+   ========================================================================== */
+
+.device {
+  height: 100dvh;
+  max-width: 430px;
+  margin: 0 auto;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Desktop: an iPhone-sized tracker centred on the page. */
+@media (min-width: 600px) and (min-height: 700px) {
+  body {
+    display: grid;
+    place-items: center;
+    background: #0e2148;
+  }
+  .device {
+    width: 400px;
+    height: min(860px, calc(100dvh - 48px));
+    padding: 0;
+  }
+}
+
+.device__body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 30px 18px 0;
+  background: var(--frame);
+  box-shadow:
+    inset 0 0 0 2px var(--frame-edge),
+    inset 0 0 0 4px #4aa7de;
+}
+
+/* ----- Display ---------------------------------------------------------- */
+
+.screen {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: linear-gradient(var(--screen-top), var(--screen-bottom));
+  /* Sunken bevel: dark top-left, light bottom-right, thin dark rim. */
+  box-shadow:
+    0 0 0 2px var(--frame-edge),
+    -3px -3px 0 2px var(--frame-lo),
+    3px 3px 0 2px var(--frame-hi);
+}
+/* CRT scanlines above content (and above the future map), never blocking taps. */
+.screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+}
+/* Full-bleed layer for content that fills the whole display (the map). */
+.screen-fill {
+  position: absolute;
+  inset: 0;
+}
+
+.insignia {
+  position: absolute;
+  top: 47%;
+  left: 50%;
+  width: 100%;
+  max-height: 92%;
+  transform: translate(-50%, -50%);
+  fill: #b4c6d6;
+  opacity: 0.085;
+  pointer-events: none;
+}
+
+/* ----- Top badge -------------------------------------------------------- */
+
+.badge {
+  position: absolute;
+  top: 17px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 22px;
+  padding: 0 7px;
+  transform: translateX(-50%);
+  background: var(--badge);
+  border-radius: 3px;
+  color: #d6f1ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 #0a1530;
+  box-shadow:
+    inset 0 -2px 0 0 #142046,
+    0 0 0 2px var(--frame-hi),
+    0 0 0 4px var(--frame-edge);
+}
+.badge__mask {
+  display: block;
+  margin: 0 1px;
+}
+
+/* ----- Hardware keys (decorative in V1) -------------------------------- */
+
+.hw-key {
+  position: absolute;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+}
+.hw-key > svg {
+  position: relative;
+  z-index: 1;
+  display: block;
+}
+
+/* Top-left: orange-ringed octagon with mask eyes. */
+.hw-key--mask {
+  top: 8px;
+  left: 7px;
+  width: 46px;
+  height: 46px;
+  background: var(--frame-edge);
+  clip-path: polygon(28% 0, 72% 0, 100% 28%, 100% 72%, 72% 100%, 28% 100%, 0 72%, 0 28%);
+}
+.hw-key--mask::before,
+.hw-key--mask::after {
+  content: "";
+  position: absolute;
+  clip-path: inherit;
+}
+.hw-key--mask::before {
+  inset: 2px;
+  background: var(--orange);
+}
+.hw-key--mask::after {
+  inset: 7px;
+  background: var(--ink);
+}
+
+/* Top-right: off-white square key with a spider. */
+.hw-key--spider {
+  top: 9px;
+  right: 9px;
+  width: 42px;
+  height: 42px;
+  background: var(--paper);
+  border-radius: 4px;
+  box-shadow:
+    inset -3px -3px 0 0 var(--paper-lo),
+    0 0 0 2px var(--frame-edge);
+}
+
+/* Bottom-right: off-white speaker key. */
+.hw-key--speaker {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 32px;
+  background: var(--paper);
+  border-radius: 4px;
+  box-shadow:
+    inset -3px -3px 0 0 var(--paper-lo),
+    0 0 0 2px var(--frame-edge);
+}
+
+/* Left edge: small arrow tags protruding from the frame. */
+.side-tag {
+  position: absolute;
+  left: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 28px;
+  padding-right: 6px;
+  background: var(--frame-edge);
+  clip-path: polygon(0 0, 76% 0, 100% 50%, 76% 100%, 0 100%);
+}
+.side-tag::before {
+  content: "";
+  position: absolute;
+  inset: 2px 2px 2px 0;
+  background: linear-gradient(var(--paper) 0 70%, var(--paper-lo) 70%);
+  clip-path: inherit;
+}
+.side-tag > svg {
+  position: relative;
+  z-index: 1;
+}
+.side-tag--1 { top: 25%; }
+.side-tag--2 { top: calc(25% + 36px); }
+
+/* ----- Bottom hardware -------------------------------------------------- */
+
+.device__bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 64px;
+  padding: 6px 0 0;
+}
+.device__mini {
+  position: relative;
+  z-index: 60;
+  flex: none;
+  margin: -16px 0 0 -12px; /* stands over the frame corner */
+}
+.device__mini svg {
+  display: block;
+}
+
+.status-display {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  background: linear-gradient(#33373c, #26292d);
+  border-radius: 4px;
+  color: #a9dcef;
+  font-size: 14px;
+  letter-spacing: 2px;
+  box-shadow:
+    inset 0 2px 0 0 #1a1c1f,
+    0 0 0 2px #6fb7da,
+    0 0 0 4px var(--frame-edge);
+}
+.status-display__text {
+  overflow: hidden;
+  white-space: nowrap;
+}
+.status-display__led {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: #3c4148;
+}
+.led-ok { background: var(--led-green); }
+.led-warn { background: var(--led-amber); }
+.led-err { background: var(--led-red); }
+.is-blinking { animation: blink 1s steps(1) infinite; }
+
+/* ==========================================================================
+   Controls
+   ========================================================================== */
+
+.pixel-btn {
+  --btn-bg: var(--paper);
+  --btn-fg: var(--ink);
+  --btn-shade: var(--paper-lo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-family: var(--font-pixel);
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  box-shadow:
+    inset -3px -3px 0 0 var(--btn-shade),
+    0 0 0 2px var(--ink);
+}
+.pixel-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    inset 3px 3px 0 0 var(--btn-shade),
+    0 0 0 2px var(--ink);
+}
+.pixel-btn:focus-visible {
+  outline: 2px dashed var(--cyan);
+  outline-offset: 5px;
+}
+.pixel-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.pixel-btn--red {
+  --btn-bg: var(--red);
+  --btn-fg: var(--paper);
+  --btn-shade: var(--red-lo);
+}
+.pixel-btn--cyan {
+  --btn-bg: var(--cyan);
+  --btn-fg: var(--ink);
+  --btn-shade: #2a7fa3;
+}
+/* Outlined pill drawn on the display, like the reference's selected option. */
+.pixel-btn--screen {
+  --btn-bg: #34506a;
+  --btn-fg: #e6f6ff;
+  --btn-shade: #2a4157;
+  box-shadow:
+    inset 0 -2px 0 0 var(--btn-shade),
+    0 0 0 3px #a6e1f7,
+    0 0 0 5px var(--screen-ink);
+}
+.pixel-btn--screen:active:not(:disabled) {
+  box-shadow:
+    inset 0 2px 0 0 var(--btn-shade),
+    0 0 0 3px #a6e1f7,
+    0 0 0 5px var(--screen-ink);
+}
+.pixel-btn--small {
+  min-height: 40px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* Inline readout field on the display: "> NAME_" */
+.readout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  background: #1a1c20;
+  border-radius: 4px;
+  box-shadow:
+    inset 0 2px 0 0 #101114,
+    0 0 0 2px #4b525b,
+    0 0 0 4px var(--screen-ink);
+}
+.readout:focus-within {
+  box-shadow:
+    0 0 0 2px var(--screen-text),
+    0 0 0 4px var(--screen-ink);
+}
+.readout__prompt {
+  color: var(--red);
+  font-size: 16px;
+}
+.readout__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #e6f6ff;
+  font-family: var(--font-pixel);
+  font-size: 16px; /* >=16px stops iOS zooming on focus */
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  caret-color: var(--red);
+  outline: none;
+}
+.readout__input::placeholder {
+  color: #3d4550;
+}
+
+/* ==========================================================================
+   Display content
+   ========================================================================== */
+
+/* Hanging Spidey: the web line drops from the badge mask to just above the console. */
+.hanging {
+  flex: 1;
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: 50% 0;
+  animation: swing 5s steps(10) infinite alternate;
+}
+.hanging__line {
+  flex: 1;
+  width: 2px;
+  background: #f4f4f4;
+}
+.hanging__body svg {
+  display: block;
+}
+@keyframes swing {
+  from { transform: rotate(-0.6deg); }
+  to { transform: rotate(0.6deg); }
+}
+
+.home {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Compact console under Spidey, centred like the reference welcome text. */
+.console {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0 22px 18px;
+  color: var(--screen-text);
+  text-align: center;
+}
+.console__headline {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+.eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 16px;
+  margin-bottom: 4px;
+}
+.eq span {
+  width: 9px;
+  background: #5fb8e3;
+}
+.eq span:nth-child(odd) {
+  background: #8fd3f2;
+}
+.console__label {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--screen-text);
+}
+.console .readout {
+  align-self: stretch;
+}
+.console .pixel-btn {
+  margin-top: 6px;
+}
+.console__error {
+  margin: 0;
+  color: var(--led-red);
+  font-size: 8px;
+  line-height: 1.6;
+}
+.console__foot {
+  margin: 2px 0 0;
+  color: var(--screen-muted);
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+.cursor,
+.blink {
+  animation: blink 1.1s steps(1) infinite;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ----- Phase 2 display states ------------------------------------------ */
+
+.console__copy {
+  margin: 0;
+  max-width: 32ch;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 1px;
+}
+.console__copy--dim {
+  color: var(--screen-muted);
+}
+.eq--live span {
+  animation: eq-pulse 0.9s steps(3) infinite alternate;
+}
+@keyframes eq-pulse {
+  from { transform: scaleY(0.4); }
+  to { transform: scaleY(1); }
+}
+.eq span {
+  transform-origin: bottom;
+}
+
+.invite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  align-self: stretch;
+}
+.invite .readout {
+  align-self: stretch;
+}
+.readout__input--link {
+  font-size: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--screen-text);
+}
+.invite__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Small text-only control, e.g. END TRACKER / COPY LINK. Still >=44px tall. */
+.text-btn {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--screen-muted);
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  letter-spacing: 1px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.text-btn:disabled {
+  opacity: 0.5;
+}
+
+/* ----- Phase 3: sharing readout ----------------------------------------- */
+
+.home--compact .hanging {
+  min-height: 60px;
+}
+.sharing-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sharing-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--led-red);
+  animation: blink 1.1s steps(1) infinite;
+}
+
+/* Two-column pixel readout: label / value. */
+.readout-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 7px 14px;
+  align-self: stretch;
+  margin: 2px 0 0;
+  padding: 10px 12px;
+  background: #1a1c20;
+  border-radius: 4px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-align: left;
+  box-shadow:
+    inset 0 2px 0 0 #101114,
+    0 0 0 2px #4b525b,
+    0 0 0 4px var(--screen-ink);
+}
+.readout-grid dt {
+  color: var(--screen-muted);
+}
+.readout-grid dd {
+  margin: 0;
+  color: #e6f6ff;
+  text-align: right;
+}
+.readout-grid .is-warn { color: var(--led-amber); }
+.readout-grid .is-err { color: var(--led-red); }
+
+/* The persistent, unmistakable stop control. */
+.stop-btn {
+  align-self: stretch;
+  min-height: 52px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Dev-only sharing diagnostics (never rendered in production builds). */
+.diag {
+  margin: 0;
+  color: #6b7480;
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+.status-display--long {
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+/* ==========================================================================
+   Phase 4: live map
+   ========================================================================== */
+
+.tracker-map {
+  width: 100%;
+  height: 100%;
+  background: #121d38;
+}
+/* Rendered at 1x and upscaled without smoothing: chunky pixel-gadget look. */
+.tracker-map canvas {
+  image-rendering: pixelated;
+}
+/* Required map credits, restyled as a tiny readout. Selectors are more specific
+   than MapLibre's own (which load later and would otherwise win). */
+.tracker-map .maplibregl-ctrl-bottom-left {
+  right: 82px; /* span up to the MapTiler logo instead of shrink-wrapping */
+}
+.tracker-map .maplibregl-ctrl-bottom-left .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  margin: 0 0 3px 3px;
+  padding: 1px 4px;
+  max-width: 100%;
+  overflow: hidden;
+  background: rgba(10, 16, 32, 0.8);
+  border-radius: 2px;
+}
+.tracker-map .maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-inner {
+  color: #7fa0c0;
+  font-family: var(--font-pixel);
+  font-size: 6px;
+  line-height: 1.5;
+  letter-spacing: 0.3px;
+  white-space: nowrap; /* MapLibre's corner box shrink-wraps; keep credits on one line */
+}
+.tracker-map .maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-inner a {
+  color: #a9cbe6;
+  text-decoration: none;
+}
+.maptiler-logo {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  z-index: 45;
+  display: block;
+  opacity: 0.85;
+}
+.maptiler-logo img {
+  display: block;
+  height: 14px;
+  width: auto;
+}
+
+/* ----- Markers ---------------------------------------------------------- */
+
+.spidey-marker {
+  position: relative;
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.55));
+  transition: opacity 0.3s;
+}
+.spidey-marker svg {
+  position: relative;
+  display: block;
+}
+/* Pixel ring that expands once each time a real fix arrives. */
+.spidey-marker__ping {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 3px solid var(--red);
+  opacity: 0;
+  pointer-events: none;
+}
+.spidey-marker.is-ping .spidey-marker__ping {
+  animation: marker-ping 1.1s steps(6) 1;
+}
+@keyframes marker-ping {
+  0% { transform: scale(1); opacity: 0.95; }
+  100% { transform: scale(4.2); opacity: 0; }
+}
+.spidey-marker.is-stale {
+  opacity: 0.6;
+}
+.spidey-marker.is-offline {
+  opacity: 0.45;
+  filter: grayscale(1) drop-shadow(0 3px 0 rgba(0, 0, 0, 0.55));
+}
+.me-marker svg {
+  display: block;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.6));
+}
+
+/* ----- HUD over the map ------------------------------------------------- */
+
+.hud {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  z-index: 45;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none; /* map stays draggable between HUD pieces */
+}
+.hud > * {
+  pointer-events: auto;
+}
+.hud--top {
+  top: 32px;
+}
+.hud--bottom {
+  bottom: 26px;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.hud-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  background: rgba(10, 14, 22, 0.88);
+  border-radius: 3px;
+  color: #a9dcef;
+  font-size: 10px;
+  letter-spacing: 1px;
+  box-shadow: 0 0 0 2px #4b525b, 0 0 0 3px var(--screen-ink);
+}
+.hud-chip__dot {
+  width: 6px;
+  height: 6px;
+  background: #3c4148;
+}
+.hud-chip--live .hud-chip__dot { background: var(--led-green); animation: blink 1s steps(1) infinite; }
+.hud-chip--live { color: var(--lcd); }
+.hud-chip--stale .hud-chip__dot { background: var(--led-amber); }
+.hud-chip--stale { color: var(--led-amber); }
+.hud-chip--offline .hud-chip__dot { background: var(--led-red); }
+.hud-chip--offline { color: var(--led-red); }
+
+.hud-readout {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(10, 14, 22, 0.88);
+  border-radius: 4px;
+  color: #a9cbe6;
+  font-size: 9px;
+  letter-spacing: 1px;
+  box-shadow: 0 0 0 2px #4b525b, 0 0 0 3px var(--screen-ink);
+}
+.hud-readout dd {
+  margin: 0;
+}
+.hud-readout__title {
+  color: var(--red);
+  font-weight: 700;
+}
+.hud-readout__name {
+  color: #e6f6ff;
+  font-size: 12px;
+}
+.hud-readout__big {
+  color: var(--cyan);
+  font-size: 14px;
+  font-weight: 700;
+}
+.hud-readout__muted {
+  color: var(--screen-muted);
+}
+.hud-link {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--cyan);
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.hud-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hud-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 52px;
+  min-height: 44px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow:
+    inset -3px -3px 0 0 var(--paper-lo),
+    0 0 0 2px var(--frame-edge);
+}
+.hud-key:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 3px 3px 0 0 var(--paper-lo), 0 0 0 2px var(--frame-edge);
+}
+.hud-key--end {
+  background: var(--red);
+  color: var(--paper);
+  box-shadow: inset -3px -3px 0 0 var(--red-lo), 0 0 0 2px var(--frame-edge);
+  font-size: 9px;
+}
+
+/* Pixel icons drawn with CSS (the pixel font has no symbol glyphs). */
+.px-icon {
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+.px-icon--target {
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+.px-icon--target::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 4px;
+  height: 4px;
+  background: var(--red);
+}
+.px-icon--fit {
+  border: 2px dashed currentColor;
+}
+.px-icon--fit::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 4px;
+  height: 4px;
+  background: #1f7fa8;
+}
+
+.map-offline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 28px;
+  text-align: center;
+  color: var(--screen-text);
+}
+
+/* ----- Mutual tracking controls ---------------------------------------- */
+
+.hud-key--stop {
+  background: var(--led-amber);
+  color: var(--ink);
+  box-shadow: inset -3px -3px 0 0 #b9861f, 0 0 0 2px var(--frame-edge);
+  font-size: 9px;
+}
+.hud-key--end.is-armed {
+  background: var(--paper);
+  color: var(--red);
+  animation: blink 0.8s steps(1) infinite;
+}
+.text-btn--armed {
+  color: var(--led-red);
+}
+.text-btn--cyan {
+  color: var(--cyan);
+}
+.hud-readout__warn {
+  color: var(--led-amber);
+}

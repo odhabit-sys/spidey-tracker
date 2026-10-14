@@ -1,0 +1,11 @@
+# Never upload local secrets or local tooling. Vercel gets its environment
+# variables from the project settings instead.
+.env*
+!.env.example
+.*
+.git
+node_modules
+.next
+public/maplibre
+*.tsbuildinfo
+.DS_Store
